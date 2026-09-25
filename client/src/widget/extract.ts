@@ -49,6 +49,18 @@ export function getElementById(id: number): Element | null {
   return document.querySelector(`[data-pf-id="${id}"]`);
 }
 
+// Fallback lookup for when a model's target_id no longer resolves (the page
+// changed since the snapshot). Same candidate pool and visibility rules as
+// the extractor, matched on accessible name instead of id.
+export function findByName(name: string): Element | null {
+  const wanted = name.replace(/\s+/g, " ").trim().toLowerCase();
+  const candidates = Array.from(document.querySelectorAll(CANDIDATE_SELECTOR)).filter(isVisible);
+  for (const el of candidates) {
+    if (accessibleName(el).replace(/\s+/g, " ").trim().toLowerCase() === wanted) return el;
+  }
+  return null;
+}
+
 export function isVisible(el: Element): boolean {
   if (!(el instanceof HTMLElement)) return false;
   if (el.closest(WIDGET_ROOT)) return false;

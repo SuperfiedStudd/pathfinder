@@ -53,7 +53,7 @@ app.post("/api/decide", async (request: Request, response: Response) => {
     const raw = MOCK
       ? decideWithMock(req, manifest)
       : await decideWithGemini(buildSystemPrompt(manifest, mode), buildUserTurn(req));
-    const action = validateAction(raw, mode, manifest);
+    const action = validateAction(raw, mode, manifest, req.pageModel);
     const latencyMs = Date.now() - started;
     // Never log the page model or the transcript; they contain user data.
     console.log(`[decide] site=${req.siteId} mode=${mode} action=${action.action} target=${action.target_id ?? "-"} blocked=${action.policy_blocked ? 1 : 0} ${latencyMs}ms`);

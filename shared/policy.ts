@@ -23,16 +23,18 @@ export function effectiveMode(requested: Mode, manifest: SiteManifest): Mode {
 // Normalizes whatever the model returned into an action the executor can
 // run. Anything outside the allowlist becomes an explain and is flagged so
 // the UI can show that policy intervened.
-export function validateAction(raw: unknown, mode: Mode, manifest: SiteManifest): Action {
+export function validateAction(raw: unknown, mode: Mode, manifest: SiteManifest, pageModel: string): Action {
   const obj = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const action: Action = {
     thought: typeof obj.thought === "string" ? obj.thought : "",
     action: ACTION_TYPES.includes(obj.action as ActionType) ? (obj.action as ActionType) : "explain",
     target_id: typeof obj.target_id === "number" ? obj.target_id : null,
+    target_name: typeof obj.target_name === "string" ? obj.target_name : undefined,
     value: typeof obj.value === "string" ? obj.value : null,
     message: typeof obj.message === "string" && obj.message.trim() ? obj.message.trim() : "Let me take another look at the page.",
     options: Array.isArray(obj.options) ? obj.options.filter((o) => typeof o === "string").slice(0, 4) as string[] : undefined,
     goal_progress: typeof obj.goal_progress === "string" ? obj.goal_progress : undefined,
+    goal_id: typeof obj.goal_id === "string" ? obj.goal_id : undefined,
   };
 
   const mode2 = effectiveMode(mode, manifest);
@@ -62,6 +64,24 @@ export function validateAction(raw: unknown, mode: Mode, manifest: SiteManifest)
 
   if (action.action === "ask" && (!action.options || action.options.length === 0)) {
     action.options = undefined;
+  }
+
+  // Deterministic completion gate: "done" only sticks once the goal's
+  // doneMatch (when declared) actually appears in the page model. Otherwise
+  // the model gets a chance to look again instead of ending the session.
+  if (action.action === "done") {
+    const goal =
+      manifest.goals.find((g) => g.id === action.goal_id) ??
+      (manifest.goals.length === 1 ? manifest.goals[0] : undefined);
+    if (goal?.doneMatch && !new RegExp(goal.doneMatch, "i").test(pageModel)) {
+      return {
+        ...action,
+        action: "explain",
+        target_id: null,
+        value: null,
+        message: "I do not see the confirmation on this page yet. What does the screen show right now?",
+      };
+    }
   }
 
   return action;

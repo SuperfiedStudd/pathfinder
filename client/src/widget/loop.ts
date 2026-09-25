@@ -72,7 +72,12 @@ export class OnboardingLoop {
   private repeatKey = "";
   private repeatCount = 0;
   private settleResolver: (() => void) | null = null;
+  private settleFinish: (() => void) | null = null;
   private pendingChange = false;
+  private destroyed = false;
+  private navigateHandler: (() => void) | null = null;
+  private popstateHandler: (() => void) | null = null;
+  private changeHandler: ((ev: Event) => void) | null = null;
 
   constructor(
     public readonly siteId: string,
@@ -196,6 +201,7 @@ export class OnboardingLoop {
   }
 
   private async step(reason: string): Promise<void> {
+    if (this.destroyed) return;
     dbg("step", reason, "inFlight", this.stepInFlight, "steps", this.view.steps);
     if (this.stepInFlight) return;
     if (this.view.steps >= MAX_STEPS) {
@@ -227,7 +233,7 @@ export class OnboardingLoop {
         throw new Error(err.error || `decide failed (${res.status})`);
       }
       const data = (await res.json()) as DecideResponse;
-      let action = validateAction(data.action, this.view.mode, this.manifest);
+      let action = validateAction(data.action, this.view.mode, this.manifest, snap.text);
 
       // Local loop breaker: three identical actions in a row become a question.
       const key = `${action.action}:${action.target_id ?? ""}`;
@@ -273,6 +279,7 @@ export class OnboardingLoop {
   }
 
   private async runAction(action: Action): Promise<void> {
+    if (this.destroyed) return;
     if (this.stepInFlight) return;
     this.stepInFlight = true;
     this.update({ state: "acting" });
@@ -337,22 +344,22 @@ export class OnboardingLoop {
         return r;
       };
     }
-    window.addEventListener("pf:navigate", () => this.onPageChanged("navigation"));
-    window.addEventListener("popstate", () => this.onPageChanged("navigation"));
+    this.navigateHandler = () => this.onPageChanged("navigation");
+    this.popstateHandler = () => this.onPageChanged("navigation");
+    window.addEventListener("pf:navigate", this.navigateHandler);
+    window.addEventListener("popstate", this.popstateHandler);
 
-    document.addEventListener(
-      "change",
-      (ev) => {
-        const target = ev.target as Element | null;
-        dbg("change event", target?.id, "current", (this.overlay.current() as HTMLElement | null)?.id, "same", this.overlay.current() === target);
-        if (!target || this.widgetRoot.contains(target)) return;
-        const current = this.overlay.current();
-        if (current && (current === target || current.contains(target))) this.onPageChanged("field changed");
-      },
-      true,
-    );
+    this.changeHandler = (ev) => {
+      const target = ev.target as Element | null;
+      dbg("change event", target?.id, "current", (this.overlay.current() as HTMLElement | null)?.id, "same", this.overlay.current() === target);
+      if (!target || this.widgetRoot.contains(target)) return;
+      const current = this.overlay.current();
+      if (current && (current === target || current.contains(target))) this.onPageChanged("field changed");
+    };
+    document.addEventListener("change", this.changeHandler, true);
 
     this.observer = new MutationObserver((records) => {
+      if (this.destroyed) return;
       let significant = false;
       for (const rec of records) {
         if (this.widgetRoot.contains(rec.target)) continue;
@@ -382,6 +389,7 @@ export class OnboardingLoop {
   }
 
   private onPageChanged(reason: string): void {
+    if (this.destroyed) return;
     dbg("trigger", reason, "state", this.view.state, "gap", Date.now() - this.lastStepEnd);
     if (this.view.state !== "waiting_for_user") {
       // The page moved while the agent was deciding. Remember it so the
@@ -420,6 +428,7 @@ export class OnboardingLoop {
       let quiet: number | null = null;
       const finish = () => {
         this.settleResolver = null;
+        this.settleFinish = null;
         if (quiet) window.clearTimeout(quiet);
         resolve();
       };
@@ -432,12 +441,21 @@ export class OnboardingLoop {
         quiet = window.setTimeout(finish, SETTLE_QUIET_MS);
       };
       this.settleResolver = arm;
+      this.settleFinish = finish;
       arm();
     });
   }
 
   destroy(): void {
+    this.destroyed = true;
+    if (this.navigateHandler) window.removeEventListener("pf:navigate", this.navigateHandler);
+    if (this.popstateHandler) window.removeEventListener("popstate", this.popstateHandler);
+    if (this.changeHandler) document.removeEventListener("change", this.changeHandler, true);
     this.observer?.disconnect();
+    if (this.mutationTimer) window.clearTimeout(this.mutationTimer);
+    this.mutationTimer = null;
+    if (this.settleFinish) this.settleFinish();
+    this.overlay.destroy();
     this.overlay.clear();
     this.listeners.clear();
   }

@@ -4,6 +4,7 @@ export interface Goal {
   id: string;
   title: string;
   doneWhen: string;
+  doneMatch?: string;
 }
 
 export interface SitePolicy {
@@ -31,11 +32,13 @@ export const manifests: Record<string, SiteManifest> = {
         id: "donate",
         title: "Complete a donation",
         doneWhen: "A donation confirmation with a receipt number is visible on the page.",
+        doneMatch: "Receipt number CC-\\d{4}",
       },
       {
         id: "volunteer",
         title: "Sign up to volunteer",
         doneWhen: "A volunteer signup confirmation is visible on the page.",
+        doneMatch: "Thank you for volunteering",
       },
       {
         id: "learn",
@@ -56,6 +59,7 @@ export const manifests: Record<string, SiteManifest> = {
         title: "Finish workspace setup",
         doneWhen:
           "The dashboard checklist shows Organization, Pipeline and Integrations complete and the Workspace ready banner is visible.",
+        doneMatch: "Workspace ready",
       },
     ],
     clarify: [

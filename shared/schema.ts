@@ -14,10 +14,12 @@ export interface Action {
   thought: string;
   action: ActionType;
   target_id?: number | null;
+  target_name?: string;
   value?: string | null;
   message: string;
   options?: string[];
   goal_progress?: string;
+  goal_id?: string;
   policy_blocked?: boolean;
 }
 
@@ -78,6 +80,10 @@ export const ACTION_SCHEMA = {
       type: ["integer", "null"],
       description: "The [id] from the page model. Required for highlight, scroll, fill and click.",
     },
+    target_name: {
+      type: "string",
+      description: "the quoted accessible name of the target exactly as it appears in the page model",
+    },
     value: {
       type: ["string", "null"],
       description: "Value to type into the target. Assist mode fill only.",
@@ -94,6 +100,10 @@ export const ACTION_SCHEMA = {
     goal_progress: {
       type: "string",
       description: "Which goal is active and what remains before it is done.",
+    },
+    goal_id: {
+      type: "string",
+      description: "the id of the manifest goal you are working on",
     },
   },
   required: ["thought", "action", "message"],

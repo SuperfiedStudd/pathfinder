@@ -7,6 +7,7 @@ export class Overlay {
   private tip: HTMLDivElement;
   private target: Element | null = null;
   private raf = 0;
+  private onMove: () => void;
 
   constructor(root: HTMLElement) {
     this.layer = document.createElement("div");
@@ -20,9 +21,9 @@ export class Overlay {
     root.appendChild(this.layer);
     this.layer.style.display = "none";
 
-    const onMove = () => this.schedule();
-    window.addEventListener("scroll", onMove, true);
-    window.addEventListener("resize", onMove);
+    this.onMove = () => this.schedule();
+    window.addEventListener("scroll", this.onMove, true);
+    window.addEventListener("resize", this.onMove);
   }
 
   show(target: Element, message: string): void {
@@ -43,6 +44,13 @@ export class Overlay {
 
   current(): Element | null {
     return this.target;
+  }
+
+  destroy(): void {
+    window.removeEventListener("scroll", this.onMove, true);
+    window.removeEventListener("resize", this.onMove);
+    if (this.raf) cancelAnimationFrame(this.raf);
+    this.layer.remove();
   }
 
   private schedule(): void {

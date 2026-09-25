@@ -1,5 +1,5 @@
 import type { Action } from "@shared/schema";
-import { getElementById } from "./extract";
+import { getElementById, findByName } from "./extract";
 import { isSensitive } from "./redact";
 import type { Overlay } from "./overlay";
 
@@ -43,8 +43,19 @@ export function setNativeValue(el: HTMLInputElement | HTMLTextAreaElement, value
 }
 
 export async function execute(action: Action, overlay: Overlay): Promise<ExecResult> {
-  const el = action.target_id !== null && action.target_id !== undefined ? getElementById(action.target_id) : null;
+  let el = action.target_id !== null && action.target_id !== undefined ? getElementById(action.target_id) : null;
+  let resolvedByName = false;
+  if (!el && typeof action.target_id === "number" && action.target_name) {
+    el = findByName(action.target_name);
+    resolvedByName = el !== null;
+  }
 
+  const result = perform(action, el, overlay);
+  if (resolvedByName) result.outcome = `resolved by name: ${result.outcome}`;
+  return result;
+}
+
+function perform(action: Action, el: Element | null, overlay: Overlay): ExecResult {
   switch (action.action) {
     case "highlight": {
       if (!el) return { outcome: "target not found on page", waitForUser: false, autoAfterMs: 400 };
