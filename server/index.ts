@@ -1,3 +1,4 @@
+import "./env";
 import express, { type Request, type Response } from "express";
 import path from "node:path";
 import fs from "node:fs";
