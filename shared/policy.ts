@@ -28,13 +28,13 @@ export function validateAction(raw: unknown, mode: Mode, manifest: SiteManifest,
   const action: Action = {
     thought: typeof obj.thought === "string" ? obj.thought : "",
     action: ACTION_TYPES.includes(obj.action as ActionType) ? (obj.action as ActionType) : "explain",
-    target_id: typeof obj.target_id === "number" ? obj.target_id : null,
-    target_name: typeof obj.target_name === "string" ? obj.target_name : undefined,
+    target_id: typeof obj.target_id === "number" && Number.isSafeInteger(obj.target_id) && obj.target_id > 0 ? obj.target_id : null,
+    target_name: typeof obj.target_name === "string" && obj.target_name.trim() ? obj.target_name : undefined,
     value: typeof obj.value === "string" ? obj.value : null,
     message: typeof obj.message === "string" && obj.message.trim() ? obj.message.trim() : "Let me take another look at the page.",
     options: Array.isArray(obj.options) ? obj.options.filter((o) => typeof o === "string").slice(0, 4) as string[] : undefined,
     goal_progress: typeof obj.goal_progress === "string" ? obj.goal_progress : undefined,
-    goal_id: typeof obj.goal_id === "string" ? obj.goal_id : undefined,
+    goal_id: typeof obj.goal_id === "string" && obj.goal_id.trim() ? obj.goal_id : undefined,
   };
 
   const mode2 = effectiveMode(mode, manifest);
@@ -73,7 +73,16 @@ export function validateAction(raw: unknown, mode: Mode, manifest: SiteManifest,
     const goal =
       manifest.goals.find((g) => g.id === action.goal_id) ??
       (manifest.goals.length === 1 ? manifest.goals[0] : undefined);
-    if (goal?.doneMatch && !new RegExp(goal.doneMatch, "i").test(pageModel)) {
+    if (!goal) {
+      return {
+        ...action,
+        action: "explain",
+        target_id: null,
+        value: null,
+        message: "I cannot verify which goal is complete yet. What does the screen show right now?",
+      };
+    }
+    if (goal.doneMatch && !new RegExp(goal.doneMatch, "i").test(pageModel)) {
       return {
         ...action,
         action: "explain",

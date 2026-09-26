@@ -68,6 +68,7 @@ export class OnboardingLoop {
   private stepInFlight = false;
   private lastStepEnd = 0;
   private mutationTimer: number | null = null;
+  private autoTimer: number | null = null;
   private observer: MutationObserver | null = null;
   private repeatKey = "";
   private repeatCount = 0;
@@ -315,7 +316,10 @@ export class OnboardingLoop {
     }
     if (result.autoAfterMs !== undefined) {
       this.update({ state: "acting" });
-      window.setTimeout(() => void this.step("auto"), result.autoAfterMs);
+      this.autoTimer = window.setTimeout(() => {
+        this.autoTimer = null;
+        void this.step("auto");
+      }, result.autoAfterMs);
       return;
     }
     this.update({ state: "waiting_for_user" });
@@ -454,6 +458,8 @@ export class OnboardingLoop {
     this.observer?.disconnect();
     if (this.mutationTimer) window.clearTimeout(this.mutationTimer);
     this.mutationTimer = null;
+    if (this.autoTimer) window.clearTimeout(this.autoTimer);
+    this.autoTimer = null;
     if (this.settleFinish) this.settleFinish();
     this.overlay.destroy();
     this.overlay.clear();

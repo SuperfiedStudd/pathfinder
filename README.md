@@ -46,7 +46,7 @@ Project Mariner, Operator and Browser Use act on the user's behalf from the outs
 ## Architecture
 
 ```
-client/src/widget/     the SDK. Touches the host page only through DOM APIs.
+client/src/widget/     the embedded widget. Touches the host page only through DOM APIs.
   extract.ts           DOM -> compact text page model, stable ids, change summary
   redact.ts            sensitive value masking
   overlay.ts           highlight box and tooltip

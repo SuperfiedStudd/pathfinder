@@ -28,6 +28,18 @@ describe("policy", () => {
     expect(out.message).toMatch(/could not find/i);
   });
 
+  it("rejects malformed target ids and blank fallback names", () => {
+    const out = validateAction(
+      { action: "click", target_id: 1.5, target_name: " ", message: "Go" },
+      "assist",
+      manifests.ledgerly,
+      "",
+    );
+    expect(out.action).toBe("explain");
+    expect(out.target_id).toBeNull();
+    expect(out.target_name).toBeUndefined();
+  });
+
   it("survives garbage from the model", () => {
     const out = validateAction("not json at all", "guide", manifests.canopy, "");
     expect(out.action).toBe("explain");
@@ -53,6 +65,30 @@ describe("policy", () => {
       "Workspace ready banner is visible.",
     );
     expect(out.action).toBe("done");
+  });
+
+  it.each([undefined, "not-a-goal", 42])("blocks Canopy done with unresolved goal_id %s", (goal_id) => {
+    const out = validateAction(
+      { action: "done", goal_id, message: "All set" },
+      "guide",
+      manifests.canopy,
+      "Receipt number CC-1234",
+    );
+    expect(out.action).toBe("explain");
+    expect(out.message).toMatch(/cannot verify which goal/i);
+  });
+
+  it("blocks Canopy donation done before the receipt and allows it after", () => {
+    const raw = { action: "done", goal_id: "donate", message: "All set" };
+    expect(validateAction(raw, "guide", manifests.canopy, "Donation form submitted").action).toBe("explain");
+    expect(validateAction(raw, "guide", manifests.canopy, "Receipt number CC-1234").action).toBe("done");
+  });
+
+  it("keeps the single-goal Ledgerly fallback while checking doneMatch", () => {
+    const raw = { action: "done", message: "All set" };
+    expect(validateAction(raw, "guide", manifests.ledgerly, "Setup in progress").action).toBe("explain");
+    expect(validateAction(raw, "guide", manifests.ledgerly, "Workspace ready").action).toBe("done");
+    expect(validateAction({ ...raw, goal_id: "invalid" }, "guide", manifests.ledgerly, "Workspace ready").action).toBe("done");
   });
 
   it("lets done through for a goal with no doneMatch", () => {

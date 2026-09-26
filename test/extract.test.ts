@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { snapshot, getElementById, resetSnapshotMemory } from "../client/src/widget/extract";
+import { snapshot, getElementById, findByName, resetSnapshotMemory } from "../client/src/widget/extract";
+import { execute } from "../client/src/widget/actions";
+import type { Overlay } from "../client/src/widget/overlay";
 import { maskValue } from "../client/src/widget/redact";
 
 function setPage(html: string) {
@@ -19,6 +21,7 @@ beforeEach(() => {
       return (this as HTMLElement).textContent ?? "";
     },
   });
+  HTMLElement.prototype.scrollIntoView = () => {};
 });
 
 describe("extract", () => {
@@ -78,6 +81,33 @@ describe("extract", () => {
     const el3 = document.createElement("input");
     el3.value = "Acme Roasters";
     expect(maskValue(el3)).toBe("Acme Roasters");
+  });
+
+  it("uses an exact unique name only after the original target disappears", async () => {
+    setPage('<main><button id="original">Continue</button><button id="other">Other</button></main>');
+    const id = Number(snapshot().text.match(/\[(\d+)\] button "Continue"/)![1]);
+    const overlay = { show() {}, clear() {} } as unknown as Overlay;
+    let clicked = "";
+    document.getElementById("original")!.addEventListener("click", () => { clicked = "original"; });
+    await execute({ thought: "", action: "click", target_id: id, target_name: "Other", message: "Go" }, overlay);
+    expect(clicked).toBe("original");
+
+    document.getElementById("original")!.remove();
+    const replacement = document.createElement("button");
+    replacement.textContent = "Continue";
+    replacement.addEventListener("click", () => { clicked = "replacement"; });
+    document.querySelector("main")!.appendChild(replacement);
+    const result = await execute({ thought: "", action: "click", target_id: id, target_name: "Continue", message: "Go" }, overlay);
+    expect(clicked).toBe("replacement");
+    expect(result.outcome).toMatch(/resolved by name/);
+
+    expect(findByName(" ")).toBeNull();
+    document.querySelector("main")!.appendChild(replacement.cloneNode(true));
+    expect(findByName("Continue")).toBeNull();
+    clicked = "";
+    const ambiguous = await execute({ thought: "", action: "click", target_id: id, target_name: "Continue", message: "Go" }, overlay);
+    expect(clicked).toBe("");
+    expect(ambiguous.outcome).toBe("target not found on page");
   });
 });
 

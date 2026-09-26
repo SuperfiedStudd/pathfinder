@@ -16,6 +16,15 @@ Hacking 11:30 AM to 2:30 PM hard stop. Pre-built work is allowed; the window is 
 - Free tier is roughly 20 requests per day on the Flash models and 500 on Flash-Lite. Enable billing on the project that owns the key before Saturday testing. A single demo run is 8 to 15 calls.
 - AI Studio Build apps are full-stack (React client plus Node server); the key is server-side only. AI Studio imports from GitHub and syncs both ways, and deploys to Cloud Run.
 
+## Current status (September 26, before manual testing)
+
+- The monolithic demo now has deterministic `done` gating: multi-goal sites require a valid `goal_id`, and goals with `doneMatch` require visible confirmation in the page model. Goals without `doneMatch` retain their intended behavior.
+- Stale targets can recover by exact accessible name when the original `target_id` no longer resolves. Empty or ambiguous names do not select a target.
+- Loop listeners, observer, and timers, plus overlay scroll and resize listeners, are cleaned up on teardown.
+- The server loads a local `.env` when present; variables supplied by Cloud Run or AI Studio take precedence. Production does not require a `.env` file.
+- Automated verification: `npm run typecheck`, `npm test`, and `npm run build` pass.
+- Manual browser testing with real Gemini is next. A standalone SDK remains intentionally post-hackathon.
+
 ## Status (as of Friday night, September 25)
 
 Done and verified:

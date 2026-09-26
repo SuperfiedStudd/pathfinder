@@ -54,11 +54,16 @@ export function getElementById(id: number): Element | null {
 // the extractor, matched on accessible name instead of id.
 export function findByName(name: string): Element | null {
   const wanted = name.replace(/\s+/g, " ").trim().toLowerCase();
+  if (!wanted) return null;
   const candidates = Array.from(document.querySelectorAll(CANDIDATE_SELECTOR)).filter(isVisible);
+  let match: Element | null = null;
   for (const el of candidates) {
-    if (accessibleName(el).replace(/\s+/g, " ").trim().toLowerCase() === wanted) return el;
+    if (accessibleName(el).replace(/\s+/g, " ").trim().toLowerCase() === wanted) {
+      if (match) return null;
+      match = el;
+    }
   }
-  return null;
+  return match;
 }
 
 export function isVisible(el: Element): boolean {
