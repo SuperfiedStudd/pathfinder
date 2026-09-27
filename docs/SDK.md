@@ -5,12 +5,12 @@ Pathfinder adds AI onboarding to an ordinary website. Your registration declares
 ## Install with one script
 
 ```html
-<script src="https://YOUR_PATHFINDER_HOST/sdk/pathfinder.js"
-  data-pathfinder-site="your-site"
-  data-pathfinder-api="https://YOUR_PATHFINDER_HOST" defer></script>
+<script src="https://pathfinder-007.ai.studio/sdk/pathfinder.js"
+  data-pathfinder-site="YOUR_SITE_ID"
+  data-pathfinder-api="https://pathfinder-007.ai.studio" defer></script>
 ```
 
-The script exposes `window.Pathfinder` and initializes automatically when `data-pathfinder-site` is present. `data-pathfinder-api` defaults to the page origin. Use an HTTPS backend for HTTPS hosts.
+The script exposes `window.Pathfinder` and initializes automatically when `data-pathfinder-site` is present. Replace `YOUR_SITE_ID` with a site registered on that backend; the deployed backend does not accept arbitrary IDs or origins. `data-pathfinder-api` defaults to the page origin. Use an HTTPS backend for HTTPS hosts.
 
 ## Install as a module
 
@@ -18,12 +18,12 @@ The build creates `dist/sdk/pathfinder.es.js`, which exports `Pathfinder`. The p
 
 ```js
 import { Pathfinder } from '@pathfinder/sdk';
-const instance = Pathfinder.init({ siteId: 'your-site', apiBaseUrl: 'https://YOUR_PATHFINDER_HOST' });
+const instance = Pathfinder.init({ siteId: 'YOUR_SITE_ID', apiBaseUrl: 'https://pathfinder-007.ai.studio' });
 // When the host app is torn down:
 instance.destroy();
 ```
 
-For the current repository, import the built ESM file directly or configure a local package alias. Publishing to npm is outside this phase.
+For the current repository, import the built ESM file directly or configure a local package alias. The package is not published to npm.
 
 ## Register a site
 
@@ -63,7 +63,7 @@ PORT=8788 npm start
 python3 -m http.server 9090 --directory examples/sdk-host
 ```
 
-Open `http://localhost:9090`. The example registers `sdk-demo` for that origin. It imports no Pathfinder source code and uses only the standalone script.
+Open `http://localhost:9090`. The example uses the `sdk-demo` registration on the local backend at port 8788. It imports no Pathfinder source code and uses only the standalone script. Keep the localhost URL in `examples/sdk-host/index.html` for this cross-origin local test; deploying the host elsewhere requires registering its exact origin.
 
 ## Troubleshooting
 

@@ -1,5 +1,7 @@
 # Phase 1: reproduced Gemini billing failure
 
+Historical incident notes from September 26, 2026. The billing and implementation status below describes that investigation, not the current release; see the [root README](../README.md) for current setup and verification.
+
 Date: 2026-09-26. Phase 2 was intentionally not started: the user required a reliable real `/api/decide` path before Live work.
 
 ## Root cause and evidence

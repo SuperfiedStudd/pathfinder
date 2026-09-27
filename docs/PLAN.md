@@ -1,5 +1,7 @@
 # Pathfinder: plan brief
 
+Historical hackathon planning notes. Status, dates, and proposed milestones below reflect the original planning period; see the [root README](../README.md) for the current product and setup.
+
 Berkeley x DeepMind Hackathon, Sunday September 27, 2026, 2299 Piedmont Ave, Berkeley.
 Hacking 11:30 AM to 2:30 PM hard stop. Pre-built work is allowed; the window is for packaging.
 

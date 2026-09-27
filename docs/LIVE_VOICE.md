@@ -1,5 +1,7 @@
 # Gemini Live voice prototype
 
+Implementation notes from the Live voice milestone. Test counts and release status below describe that milestone; see the [root README](../README.md) for the current repository baseline.
+
 ## Baseline and preserved work
 
 The stable pre-Live baseline was pushed to shared main at `ff53e26ae104cff3a526c4fc80499411255f5ac9` (`Add voice fallback and harden model diagnostics`). Stage 2 remains uncommitted and unpushed.
