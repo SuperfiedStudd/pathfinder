@@ -1,4 +1,6 @@
 {
   "name": "Pathfinder SDK",
-  "requestFramePermissions": ["microphone"]
+  "description": "Embeddable AI guide for websites with policy-aware actions and voice assistance.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

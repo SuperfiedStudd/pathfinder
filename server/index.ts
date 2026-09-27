@@ -119,7 +119,7 @@ if (fs.existsSync(dist)) {
 }
 
 const port = Number(process.env.PORT || 8787);
-const server = app.listen(port, () => {
-  console.log(`server listening on ${port} (model: ${MOCK ? "mock, no GEMINI_API_KEY" : MODEL})`);
+const server = app.listen(port, "0.0.0.0", () => {
+  console.log(`server listening on 0.0.0.0:${port} (model: ${MOCK ? "mock, no GEMINI_API_KEY" : MODEL})`);
 });
 attachLiveServer(server);
