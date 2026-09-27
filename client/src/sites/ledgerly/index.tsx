@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useReducer, useState, type Dispatch, type ReactNode } from "react";
 import { Link, Navigate, Outlet, Route, Routes, useNavigate, useSearchParams } from "react-router-dom";
-import { mountOnboarding, unmountOnboarding } from "../../widget/mount";
+import { Pathfinder } from "../../sdk";
 import "./ledgerly.css";
 
 // State ---------------------------------------------------------------
@@ -111,8 +111,8 @@ function Layout() {
   const current = Number(params.get("step") || 0);
 
   useEffect(() => {
-    mountOnboarding("ledgerly");
-    return () => unmountOnboarding();
+    const instance = Pathfinder.init({ siteId: "ledgerly" });
+    return () => instance.destroy();
   }, []);
 
   return (

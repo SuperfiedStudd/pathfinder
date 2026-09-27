@@ -1,3 +1,5 @@
+.pf-root, .pf-root * { box-sizing: border-box; }
+
 .pf-root {
   position: fixed;
   inset: 0;
@@ -56,8 +58,6 @@
 .pf-panel-right { right: 20px; align-items: flex-end; }
 .pf-panel-left { left: 20px; align-items: flex-start; }
 
-html.pf-dock-right { padding-right: 380px; }
-html.pf-dock-left { padding-left: 380px; }
 
 .pf-panel-docked {
   top: 0;

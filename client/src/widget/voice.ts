@@ -1,3 +1,4 @@
+import { createTransport, type PathfinderTransport } from "../sdk/transport";
 export type VoiceStatus = "idle" | "starting" | "listening" | "transcribing" | "thinking" | "speaking";
 
 const MAX_RECORDING_MS = 55_000;
@@ -23,6 +24,8 @@ export class VoiceController {
     private readonly onStatus: (status: VoiceStatus) => void,
     private readonly onTranscript: (transcript: string) => void,
     private readonly onError: (message: string) => void,
+    private readonly transport: PathfinderTransport = createTransport(),
+    private readonly siteId: string = "",
   ) {}
 
   getStatus(): VoiceStatus { return this.status; }
@@ -93,8 +96,8 @@ export class VoiceController {
     }
     this.setStatus("transcribing");
     try {
-      const response = await fetch("/api/voice/transcribe", {
-        method: "POST", headers: { "Content-Type": blob.type }, body: blob,
+      const response = await fetch(this.transport.transcribe, {
+        method: "POST", headers: { "Content-Type": blob.type, ...this.transport.siteHeaders(this.siteId) }, body: blob,
       });
       if (!response.ok) throw new Error(await responseError(response));
       const data = (await response.json()) as { transcript: string };
@@ -116,8 +119,8 @@ export class VoiceController {
     const request = new AbortController();
     this.speechRequest = request;
     try {
-      const response = await fetch("/api/voice/speak", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+      const response = await fetch(this.transport.speak, {
+        method: "POST", headers: { "Content-Type": "application/json", ...this.transport.siteHeaders(this.siteId) },
         body: JSON.stringify({ text }), signal: request.signal,
       });
       if (!response.ok) throw new Error(await responseError(response));

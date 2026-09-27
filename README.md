@@ -1,10 +1,36 @@
-# Pathfinder
+# Pathfinder SDK
 
-An onboarding guide that reads the page instead of following a script.
+AI-powered onboarding for any website.
 
-A user tells Pathfinder what they are trying to get done on a website. Pathfinder looks at the live page, points at the next thing, waits for the user to act, looks again, and repeats until the outcome is visibly complete. Nothing is authored per flow. The same agent runs on a nonprofit donation site and on a SaaS setup wizard.
+Add one script. Declare outcomes. Pathfinder understands the live UI and guides or assists users toward those outcomes with Gemini Live.
 
-Built for the Berkeley x DeepMind Hackathon (September 27, 2026) on Gemini 3.8 Flash through the Interactions API, deployed from Google AI Studio to Cloud Run.
+```html
+<script src="https://YOUR_PATHFINDER_HOST/sdk/pathfinder.js"
+  data-pathfinder-site="your-site"
+  data-pathfinder-api="https://YOUR_PATHFINDER_HOST" defer></script>
+```
+
+### 1. Register your site
+
+Add a typed registration in `server/sites.ts` with a site ID, a public manifest, and exact allowed origins. See [SDK integration](docs/SDK.md).
+
+### 2. Add the SDK
+
+Use the script above on any ordinary HTML site. The standalone bundle includes the widget and its styles. Modern frontends can use the ESM artifact at `dist/sdk/pathfinder.es.js` and call `Pathfinder.init({ siteId, apiBaseUrl })`.
+
+### 3. Declare outcomes
+
+```ts
+goals: [{ id: 'workspace', title: 'Finish workspace setup', doneWhen: 'The workspace dashboard is visible' }]
+```
+
+### 4. Pathfinder handles the path
+
+There are no authored tours. Pathfinder reads the current page, explains the next action, and can perform safe Assist actions after user consent.
+
+## Google AI Studio
+
+Open Google AI Studio Build, choose Add files, and import `SuperfiedStudd/pathfinder` from GitHub on the existing main branch. Configure `GEMINI_API_KEY` as a server secret, run the preview, approve microphone permission, and use GitHub sync for future changes. Deploy to Cloud Run when ready. Cloud Run deployment has not been verified in this repository.
 
 ## The idea
 
@@ -53,10 +79,10 @@ client/src/widget/     the embedded widget. Touches the host page only through D
   actions.ts           executors: highlight, explain, scroll, ask, wait, done, fill, click
   loop.ts              observe -> decide -> act -> wait for change
   Widget.tsx           chat panel, mode toggle, consent, confirmations, drawer
-  mount.tsx            mountOnboarding(siteId)
+client/src/sdk/        public init API, auto-init script, endpoint transport
 client/src/sites/      two demo sites: canopy (nonprofit) and ledgerly (CRM wizard)
-server/                Express: /api/health, /api/decide (Gemini Interactions API), /api/voice/* (Chirp), mock decider
-shared/                action schema, manifests, policy (used by both sides)
+server/                Express: public site registry, CORS, Gemini, Live relay, Chirp fallback
+shared/                action schema, policy, and server manifest definitions
 ```
 
 One step: snapshot the DOM into text lines, mask sensitive values, POST `{siteId, mode, goal, transcript, recentActions, pageModel}`, the server builds the prompt and calls Gemini with a JSON schema for the action, validates it against the mode allowlist, the client executes it and waits for a trigger (user reply, Done button, a change on the highlighted field, a meaningful DOM mutation, or a route change).
@@ -93,28 +119,24 @@ npm run dev                 # client on :5173, server on :8787
 
 Environment: `GEMINI_API_KEY`, `PF_MODEL` (default `gemini-3.8-flash`, use `gemini-3.5-flash-lite` for cheap development), `PF_MOCK=1` to force the mock, `PORT`.
 
-## Voice setup
+## Chirp fallback setup
 
-Voice is push to talk in the same chat. Browser audio goes to the server's `/api/voice/transcribe` endpoint, then the normal `OnboardingLoop.send(transcript)` path runs. New agent messages go to `/api/voice/speak` for MP3 playback. Google Cloud credentials stay on the server. Recording stops automatically after 55 seconds; Google's synchronous STT limit is one minute or 10 MB, and this server caps uploads at 8 MB. Text remains usable if microphone permission is denied or voice setup is incomplete.
+Gemini Live is the primary voice path. The smaller mic button is optional push to talk through Chirp. Browser audio goes to the server's `/api/voice/transcribe` endpoint, then the normal `OnboardingLoop.send(transcript)` path runs. New agent messages go to `/api/voice/speak` for MP3 playback. Google Cloud credentials stay on the server. Recording stops automatically after 55 seconds; Google's synchronous STT limit is one minute or 10 MB, and this server caps uploads at 8 MB. Text remains usable if microphone permission is denied or voice setup is incomplete.
 
 1. In your Google Cloud project, enable **Cloud Speech-to-Text API** (`speech.googleapis.com`) and **Cloud Text-to-Speech API** (`texttospeech.googleapis.com`), for example with `gcloud services enable speech.googleapis.com texttospeech.googleapis.com --project=YOUR_PROJECT_ID`. Make sure billing is enabled and your identity has permission to use both APIs.
 2. Install the Google Cloud CLI, then run `gcloud auth application-default login`. Set its quota project with `gcloud auth application-default set-quota-project YOUR_PROJECT_ID` if it is not already set. Keep the generated ADC credentials outside this repository; do not add service account JSON here.
 3. Set `GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID` in the repo-root ignored `.env`. `PF_STT_LOCATION=us` selects the supported Speech-to-Text V2 Chirp 3 multi-region endpoint; `PF_TTS_VOICE=en-US-Chirp3-HD-Charon` is the default HD voice. Both optional settings can be omitted to use these defaults. Keep `GEMINI_API_KEY` set for real agent reasoning; `PF_MOCK=1` only mocks Gemini, not voice.
 4. Use Node.js 22 or newer for the Google client libraries. Run `npm install` and `npm run dev`, then open `http://localhost:5173/canopy`. Press the mic, say “I want to support tree planting in cities”, and press it again. The transcript should appear as a normal user message, Gemini should produce the normal Pathfinder action, and its agent message should play through Chirp 3 HD. Repeat at `http://localhost:5173/ledgerly`. Use the speaker control to mute or unmute responses.
 
-Microphone capture requires a secure context; `localhost` works for local development. Voice calls require working Google Cloud credentials even when the Gemini mock is active. API enablement and a live voice round trip have not been verified by this repository's automated tests.
+Microphone capture requires a secure context; `localhost` works for local development. Chirp calls require working Google Cloud credentials even when the Gemini mock is active. API enablement and a live voice round trip have not been verified by this repository's automated tests.
 
 Google references: [Chirp 3 STT model and regions](https://docs.cloud.google.com/speech-to-text/v2/docs/chirp-model), [supported audio encodings](https://docs.cloud.google.com/speech-to-text/docs/reference/rest/v2/projects.locations.recognizers), [Chirp 3 HD voices](https://docs.cloud.google.com/text-to-speech/docs/chirp3-hd), and [local Application Default Credentials](https://docs.cloud.google.com/docs/authentication/set-up-adc-local-dev-environment).
-
-## AI Studio and Cloud Run
-
-AI Studio Build imports from GitHub and syncs both ways. Link this repository in Settings, GitHub tab, pull, then Deploy to Cloud Run. The Gemini key is injected as a server-side secret by AI Studio; this app reads it from `GEMINI_API_KEY`, which is the same name AI Studio uses. If AI Studio's import rewrites the server entry, keep `server/prompt.ts`, `server/gemini.ts` and the two routes from `server/index.ts`.
 
 ## Team
 
 Tanmay Kallakuri and team. See `docs/PLAN.md` for the build plan, test matrix and hackathon-day timeline.
 
-## Hands-free Live voice prototype
+## Hands-free Live voice
 
 Click **Start voice** once to open a server-owned `gemini-3.8-live` session. Allow microphone access, wait for **Listening**, then speak naturally. Gemini detects turns and streams its own audio; speak over it to interrupt. **Stop voice** releases the microphone. Typed messages during Live use the same Live session; after stopping, text returns to the normal Flash `/api/decide` path. The smaller mic button remains the Chirp push-to-talk fallback and is available when Live is off.
 

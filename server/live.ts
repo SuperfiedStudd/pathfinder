@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Server } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Behavior, GoogleGenAI, Modality, Type, type FunctionDeclaration, type LiveConnectConfig, type LiveConnectParameters, type Session } from '@google/genai';
-import { getManifest } from '../shared/manifests';
+import { getManifest, originAllowed, getSite } from './sites';
 import { effectiveMode } from '../shared/policy';
 import { LIVE_ACTIONS, LIVE_MODEL, LiveTranscripts, normalizeLiveTool, parseLiveClientMessage, validateLiveAction, type LiveContext, type LiveServerMessage } from '../shared/live';
 import { classifyModelError } from './model-errors';
@@ -48,21 +48,22 @@ const connect: LiveConnector = parameters => new GoogleGenAI({ apiKey: process.e
 export function attachLiveServer(server: Server, connector: LiveConnector = connect): WebSocketServer {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
   server.on('upgrade', (req, socket, head) => {
-    if (req.url !== '/api/live') { socket.destroy(); return; }
-    // Browsers must come from this host (including the Vite proxy). No API key
-    // or provider credential ever crosses this browser-facing connection.
-    if (req.headers.origin) {
-      try { if (new URL(req.headers.origin).host !== req.headers.host) { socket.destroy(); return; } }
-      catch { socket.destroy(); return; }
-    }
+    const url = new URL(req.url ?? '', 'http://localhost');
+    if (url.pathname !== '/api/live') { socket.destroy(); return; }
+    const siteId = url.searchParams.get('siteId') ?? '';
+    if (!getSite(siteId) || !originAllowed(siteId, req.headers.origin, req.headers.host)) { socket.destroy(); return; }
+
     wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req));
   });
-  wss.on('connection', ws => handleLiveSocket(ws, connector));
+  wss.on('connection', (ws, req) => {
+    const siteId = new URL(req.url ?? '', 'http://localhost').searchParams.get('siteId') ?? '';
+    handleLiveSocket(ws, connector, siteId);
+  });
   server.on('close', () => { for (const ws of wss.clients) ws.terminate(); wss.close(); });
   return wss;
 }
 
-export function handleLiveSocket(ws: WebSocket, connector: LiveConnector): void {
+export function handleLiveSocket(ws: WebSocket, connector: LiveConnector, authorizedSiteId?: string): void {
   const sessionId = randomUUID();
   const transcripts = new LiveTranscripts(sessionId);
   let upstream: Session | null = null;
@@ -143,6 +144,7 @@ export function handleLiveSocket(ws: WebSocket, connector: LiveConnector): void 
       if (message.type === 'stop') { cleanup(); ws.close(1000, 'Voice stopped'); return; }
       if (message.type === 'start') {
         if (starting || context) { fail('LIVE_BAD_MESSAGE', 'Voice session is already started.'); return; }
+        if (authorizedSiteId && message.context.siteId !== authorizedSiteId) { fail('LIVE_SITE_MISMATCH', 'Voice site did not match the authorized connection.'); return; }
         starting = true; context = message.context;
         void connector({ model: LIVE_MODEL, config: { ...liveConfig(context), abortSignal: abort.signal }, callbacks: {
           onmessage: msg => {

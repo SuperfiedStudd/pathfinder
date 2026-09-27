@@ -1,5 +1,5 @@
 {
-  "name": "pathfinder",
+  "name": "@pathfinder/sdk",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -7,7 +7,7 @@
     "dev": "concurrently -k \"tsx watch server/index.ts\" \"vite\"",
     "dev:server": "tsx watch server/index.ts",
     "dev:client": "vite",
-    "build": "vite build",
+    "build": "vite build && vite build -c vite.sdk.config.ts && PF_SDK_FORMAT=esm vite build -c vite.sdk.config.ts && cp client/src/sdk/pathfinder.d.ts dist/sdk/pathfinder.d.ts",
     "start": "tsx server/index.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.server.json",
     "test": "vitest run"
@@ -35,5 +35,17 @@
     "typescript": "^5.7.2",
     "vite": "^6.0.3",
     "vitest": "^2.1.8"
-  }
+  },
+  "module": "./dist/sdk/pathfinder.es.js",
+  "exports": {
+    ".": {
+      "import": "./dist/sdk/pathfinder.es.js"
+    }
+  },
+  "types": "./dist/sdk/pathfinder.d.ts",
+  "files": [
+    "dist/sdk",
+    "README.md",
+    "docs/SDK.md"
+  ]
 }

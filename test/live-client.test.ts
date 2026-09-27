@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LiveController } from '../client/src/widget/live';
 import type { OnboardingLoop } from '../client/src/widget/loop';
+import { createTransport } from '../client/src/sdk/transport';
 
 class Context {
   static instances: Context[] = [];
@@ -49,7 +50,7 @@ beforeEach(() => {
   track = { stop: vi.fn(), onended: null }; getUserMedia = vi.fn(async () => ({ getTracks: () => [track] }));
   vi.stubGlobal('navigator', { mediaDevices: { getUserMedia } });
   status = vi.fn(); error = vi.fn(); endLive = vi.fn();
-  const loop = { beginLive: () => true, endLive, liveReady: vi.fn(), liveContext: () => ({ siteId: 'canopy', mode: 'guide', goal: '', transcript: [], pageModel: 'URL /canopy\nCONTENT: Trees' }), subscribe: () => vi.fn() };
+  const loop = { siteId: 'canopy', transport: createTransport('http://localhost:8788'), beginLive: () => true, endLive, liveReady: vi.fn(), liveContext: () => ({ siteId: 'canopy', mode: 'guide', goal: '', transcript: [], pageModel: 'URL /canopy\nCONTENT: Trees' }), subscribe: () => vi.fn() };
   controller = new LiveController(loop as unknown as OnboardingLoop, status, error);
 });
 afterEach(() => { controller.dispose(); vi.unstubAllGlobals(); vi.useRealTimers(); });

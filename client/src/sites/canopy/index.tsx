@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, NavLink, Outlet, Route, Routes, useNavigate } from "react-router-dom";
-import { mountOnboarding, unmountOnboarding } from "../../widget/mount";
+import { Pathfinder } from "../../sdk";
 import { Donate } from "./Donate";
 import "./canopy.css";
 
@@ -30,8 +30,8 @@ const PROGRAMS = [
 
 function Layout() {
   useEffect(() => {
-    mountOnboarding("canopy");
-    return () => unmountOnboarding();
+    const instance = Pathfinder.init({ siteId: "canopy" });
+    return () => instance.destroy();
   }, []);
 
   return (

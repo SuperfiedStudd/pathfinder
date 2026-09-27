@@ -7,6 +7,7 @@ import { execute, targetLabel } from "./actions";
 import type { Overlay } from "./overlay";
 import { LIVE_MODEL, validateLiveAction, type LiveContext } from "@shared/live";
 import { MAX_PAGE_MODEL_CHARS } from "@shared/schema";
+import { createTransport, type PathfinderTransport } from "../sdk/transport";
 
 export type LoopState =
   | "idle"
@@ -96,6 +97,7 @@ export class OnboardingLoop {
     public readonly manifest: SiteManifest,
     private readonly overlay: Overlay,
     private readonly widgetRoot: HTMLElement,
+    public readonly transport: PathfinderTransport = createTransport(),
   ) {
     this.view = {
       state: "idle",
@@ -345,9 +347,9 @@ export class OnboardingLoop {
         recentActions: this.recent.slice(-6),
         pageModel: snap.text,
       };
-      const res = await fetch("/api/decide", {
+      const res = await fetch(this.transport.decide, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...this.transport.siteHeaders(this.siteId) },
         body: JSON.stringify(body),
       });
       if (!res.ok) {

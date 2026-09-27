@@ -49,6 +49,13 @@ export const manifests: Record<string, SiteManifest> = {
     clarify: [],
     policy: { defaultMode: "guide", allowAssist: false },
   },
+  'sdk-demo': {
+    siteName: 'SDK host example',
+    about: 'A small external website with a workspace setup form.',
+    goals: [{ id: 'workspace', title: 'Finish workspace setup', doneWhen: 'The page displays Workspace ready.', doneMatch: 'Workspace ready' }],
+    clarify: [],
+    policy: { defaultMode: 'guide', allowAssist: true },
+  },
   ledgerly: {
     siteName: "Ledgerly CRM",
     about:

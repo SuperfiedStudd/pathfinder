@@ -54,7 +54,7 @@ export class LiveController {
       if (generation !== this.generation) { stream.getTracks().forEach(track => track.stop()); return; }
       this.stream = stream;
       for (const track of stream.getTracks()) track.onended = () => this.fail('Microphone disconnected. Start voice again or use text.');
-      await this.input.audioWorklet.addModule('/live-pcm-worklet.js');
+      await this.input.audioWorklet.addModule(this.loop.transport.worklet);
       if (generation !== this.generation) return;
       this.source = this.input.createMediaStreamSource(stream);
       this.worklet = new AudioWorkletNode(this.input, 'pathfinder-pcm', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
@@ -69,7 +69,7 @@ export class LiveController {
       this.playback = new LivePlayback(this.output, speaking => {
         if (this.ready) this.setStatus(speaking ? 'speaking' : 'listening');
       });
-      const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/api/live`);
+      const ws = new WebSocket(this.loop.transport.live(this.loop.siteId));
       this.ws = ws;
       ws.onopen = () => {
         if (generation !== this.generation) return;

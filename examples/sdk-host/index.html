@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Independent workspace</title>
+  <style>
+    body { max-width: 700px; margin: 4rem auto; padding: 0 1rem; font: 17px/1.5 system-ui; color: #243047; }
+    input, button { font: inherit; padding: .6rem; }
+    label { display: block; margin: 1rem 0; }
+    .done { padding: 1rem; background: #e4f9eb; }
+  </style>
+  <script src="http://localhost:8788/sdk/pathfinder.js" data-pathfinder-site="sdk-demo" data-pathfinder-api="http://localhost:8788" defer></script>
+</head>
+<body>
+  <main>
+    <h1>Independent workspace</h1>
+    <p>This ordinary HTML site is served from another origin. Complete the form to create a workspace.</p>
+    <a href="#setup">Jump to setup</a>
+    <section id="setup">
+      <h2>Set up your workspace</h2>
+      <form id="workspace-form">
+        <label>Workspace name <input name="workspace" aria-label="Workspace name" required autocomplete="organization"></label>
+        <label>Team size <select name="team" aria-label="Team size"><option value="">Choose</option><option>One</option><option>Two to five</option></select></label>
+        <button type="submit">Create workspace</button>
+      </form>
+      <p id="result" role="status"></p>
+    </section>
+  </main>
+  <script>
+    document.getElementById('workspace-form').addEventListener('submit', event => {
+      event.preventDefault();
+      if (!event.currentTarget.reportValidity()) return;
+      document.getElementById('result').className = 'done';
+      document.getElementById('result').textContent = 'Workspace ready';
+      history.pushState({}, '', '/complete');
+      window.dispatchEvent(new Event('pf:navigate'));
+    });
+  </script>
+</body>
+</html>

@@ -41,7 +41,7 @@ export function Widget({ loop }: Props) {
   const spokenIdRef = useRef(Math.max(...loop.getView().messages.map((m) => m.id)));
 
   if (!voiceRef.current) {
-    voiceRef.current = new VoiceController(setVoiceStatus, (transcript) => loop.send(transcript), setVoiceError);
+    voiceRef.current = new VoiceController(setVoiceStatus, (transcript) => loop.send(transcript), setVoiceError, loop.transport, loop.siteId);
   }
   if (!liveRef.current) liveRef.current = new LiveController(loop, setLiveStatus, setLiveError);
 
@@ -72,15 +72,11 @@ export function Widget({ loop }: Props) {
       const wide = window.innerWidth >= 960;
       const isDocked = open && wide;
       setDocked(isDocked);
-      const root = document.documentElement;
-      root.classList.toggle("pf-dock-right", isDocked && side === "right");
-      root.classList.toggle("pf-dock-left", isDocked && side === "left");
     };
     apply();
     window.addEventListener("resize", apply);
     return () => {
       window.removeEventListener("resize", apply);
-      document.documentElement.classList.remove("pf-dock-right", "pf-dock-left");
     };
   }, [open, side]);
 
