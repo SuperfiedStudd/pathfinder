@@ -55,7 +55,7 @@ client/src/widget/     the embedded widget. Touches the host page only through D
   Widget.tsx           chat panel, mode toggle, consent, confirmations, drawer
   mount.tsx            mountOnboarding(siteId)
 client/src/sites/      two demo sites: canopy (nonprofit) and ledgerly (CRM wizard)
-server/                Express: /api/health, /api/decide (Gemini Interactions API), mock decider
+server/                Express: /api/health, /api/decide (Gemini Interactions API), /api/voice/* (Chirp), mock decider
 shared/                action schema, manifests, policy (used by both sides)
 ```
 
@@ -92,6 +92,19 @@ npm run dev                 # client on :5173, server on :8787
 `npm run typecheck`, `npm test` (policy and extractor tests under jsdom), `npm run build` then `npm start` serves the built client and the API on one port. `scripts/decide-smoke.sh` posts a fixture page model to `/api/decide`.
 
 Environment: `GEMINI_API_KEY`, `PF_MODEL` (default `gemini-3.8-flash`, use `gemini-3.5-flash-lite` for cheap development), `PF_MOCK=1` to force the mock, `PORT`.
+
+## Voice setup
+
+Voice is push to talk in the same chat. Browser audio goes to the server's `/api/voice/transcribe` endpoint, then the normal `OnboardingLoop.send(transcript)` path runs. New agent messages go to `/api/voice/speak` for MP3 playback. Google Cloud credentials stay on the server. Recording stops automatically after 55 seconds; Google's synchronous STT limit is one minute or 10 MB, and this server caps uploads at 8 MB. Text remains usable if microphone permission is denied or voice setup is incomplete.
+
+1. In your Google Cloud project, enable **Cloud Speech-to-Text API** (`speech.googleapis.com`) and **Cloud Text-to-Speech API** (`texttospeech.googleapis.com`), for example with `gcloud services enable speech.googleapis.com texttospeech.googleapis.com --project=YOUR_PROJECT_ID`. Make sure billing is enabled and your identity has permission to use both APIs.
+2. Install the Google Cloud CLI, then run `gcloud auth application-default login`. Set its quota project with `gcloud auth application-default set-quota-project YOUR_PROJECT_ID` if it is not already set. Keep the generated ADC credentials outside this repository; do not add service account JSON here.
+3. Set `GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID` in the repo-root ignored `.env`. `PF_STT_LOCATION=us` selects the supported Speech-to-Text V2 Chirp 3 multi-region endpoint; `PF_TTS_VOICE=en-US-Chirp3-HD-Charon` is the default HD voice. Both optional settings can be omitted to use these defaults. Keep `GEMINI_API_KEY` set for real agent reasoning; `PF_MOCK=1` only mocks Gemini, not voice.
+4. Use Node.js 22 or newer for the Google client libraries. Run `npm install` and `npm run dev`, then open `http://localhost:5173/canopy`. Press the mic, say “I want to support tree planting in cities”, and press it again. The transcript should appear as a normal user message, Gemini should produce the normal Pathfinder action, and its agent message should play through Chirp 3 HD. Repeat at `http://localhost:5173/ledgerly`. Use the speaker control to mute or unmute responses.
+
+Microphone capture requires a secure context; `localhost` works for local development. Voice calls require working Google Cloud credentials even when the Gemini mock is active. API enablement and a live voice round trip have not been verified by this repository's automated tests.
+
+Google references: [Chirp 3 STT model and regions](https://docs.cloud.google.com/speech-to-text/v2/docs/chirp-model), [supported audio encodings](https://docs.cloud.google.com/speech-to-text/docs/reference/rest/v2/projects.locations.recognizers), [Chirp 3 HD voices](https://docs.cloud.google.com/text-to-speech/docs/chirp3-hd), and [local Application Default Credentials](https://docs.cloud.google.com/docs/authentication/set-up-adc-local-dev-environment).
 
 ## AI Studio and Cloud Run
 

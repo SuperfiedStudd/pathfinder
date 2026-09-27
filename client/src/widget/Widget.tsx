@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { OnboardingLoop, LoopView } from "./loop";
 import { describe, elementForAction } from "./loop";
+import { VoiceController, type VoiceStatus } from "./voice";
 
 interface Props {
   loop: OnboardingLoop;
@@ -28,6 +29,32 @@ export function Widget({ loop }: Props) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [side, setSide] = useState<"right" | "left">("right");
   const [docked, setDocked] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>("idle");
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voiceError, setVoiceError] = useState("");
+  const voiceRef = useRef<VoiceController | null>(null);
+  const spokenIdRef = useRef(Math.max(...loop.getView().messages.map((m) => m.id)));
+
+  if (!voiceRef.current) {
+    voiceRef.current = new VoiceController(setVoiceStatus, (transcript) => loop.send(transcript), setVoiceError);
+  }
+
+  useEffect(() => () => voiceRef.current?.dispose(), []);
+
+  useEffect(() => {
+    for (const message of view.messages) {
+      if (message.id <= spokenIdRef.current) continue;
+      spokenIdRef.current = message.id;
+      if (message.role === "agent") {
+        if (voiceEnabled) void voiceRef.current?.speak(message.text);
+        else voiceRef.current?.markIdle();
+      }
+    }
+  }, [view.messages, voiceEnabled]);
+
+  useEffect(() => {
+    if (view.state === "error" || view.state === "stopped") voiceRef.current?.markIdle();
+  }, [view.state]);
 
   useEffect(() => loop.subscribe(setView), [loop]);
 
@@ -240,14 +267,37 @@ export function Widget({ loop }: Props) {
               disabled={busy || view.state === "awaiting_confirm"}
               aria-label="Message the guide"
             />
+            <button
+              className={`pf-btn pf-voice-btn ${voiceStatus === "listening" ? "pf-voice-active" : ""}`}
+              onClick={() => { setVoiceError(""); void voiceRef.current?.toggleRecording(); }}
+              disabled={(busy || view.state === "awaiting_confirm" || voiceStatus === "starting" || voiceStatus === "transcribing") && voiceStatus !== "listening"}
+              aria-label={voiceStatus === "listening" ? "Stop recording" : "Start recording"}
+              aria-pressed={voiceStatus === "listening"}
+              title={voiceStatus === "listening" ? "Stop recording" : "Record one message"}
+            >
+              {voiceStatus === "listening" ? "■" : "🎙"}
+            </button>
             <button className="pf-btn pf-primary" onClick={submit} disabled={busy || !text.trim()}>
               Send
             </button>
           </div>
 
           <div className="pf-toolbar">
-            <span className={`pf-status pf-status-${view.state}`}>{STATE_LABEL[view.state]}</span>
+            <span className={`pf-status pf-status-${view.state}`} role="status">
+              {voiceStatus === "idle" ? STATE_LABEL[view.state] : {
+                starting: "Opening microphone", listening: "Listening", transcribing: "Transcribing", thinking: "Thinking", speaking: "Speaking",
+              }[voiceStatus]}
+            </span>
             <div className="pf-row">
+              <button
+                className="pf-btn pf-small pf-ghost"
+                onClick={() => { setVoiceEnabled(!voiceEnabled); if (voiceEnabled) voiceRef.current?.stopPlayback(); }}
+                aria-label={voiceEnabled ? "Mute voice responses" : "Unmute voice responses"}
+                aria-pressed={!voiceEnabled}
+                title={voiceEnabled ? "Mute voice responses" : "Unmute voice responses"}
+              >
+                {voiceEnabled ? "🔊" : "🔇"}
+              </button>
               <button className="pf-btn pf-small" onClick={() => loop.next()} disabled={view.state !== "waiting_for_user"}>
                 Done, what's next
               </button>
@@ -259,6 +309,7 @@ export function Widget({ loop }: Props) {
               </button>
             </div>
           </div>
+          {voiceError && <div className="pf-voice-error" role="alert">{voiceError}</div>}
 
           {drawer && (
             <div className="pf-drawer">
@@ -266,6 +317,8 @@ export function Widget({ loop }: Props) {
                 <span>model: {view.lastModel || "none yet"}</span>
                 <span>latency: {view.lastLatencyMs} ms</span>
                 <span>steps: {view.steps}</span>
+                {view.errorCode && <span>error: {view.errorCode}</span>}
+                {view.errorRequestId && <span>request: {view.errorRequestId}</span>}
                 {view.lastAction?.policy_blocked && <span className="pf-flag">policy blocked</span>}
               </div>
               <div className="pf-drawer-label">Last action</div>

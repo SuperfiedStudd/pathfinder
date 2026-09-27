@@ -2,15 +2,19 @@ import "./env";
 import express, { type Request, type Response } from "express";
 import path from "node:path";
 import fs from "node:fs";
+import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { getManifest } from "../shared/manifests";
 import { isMode, validateAction, effectiveMode } from "../shared/policy";
-import { MAX_PAGE_MODEL_CHARS, type DecideRequest, type DecideResponse } from "../shared/schema";
+import { MAX_PAGE_MODEL_CHARS, type DecideRequest, type DecideResponse, type DecideErrorResponse } from "../shared/schema";
 import { buildSystemPrompt, buildUserTurn } from "./prompt";
 import { decideWithGemini, decideWithMock, MODEL, MOCK } from "./gemini";
+import { createVoiceRouter } from "./voice";
+import { classifyModelError } from "./model-errors";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
+app.use("/api/voice", createVoiceRouter());
 app.use(express.json({ limit: "64kb" }));
 
 app.get("/api/health", (_req, res) => {
@@ -49,6 +53,7 @@ app.post("/api/decide", async (request: Request, response: Response) => {
   const manifest = getManifest(req.siteId)!;
   const mode = effectiveMode(req.mode, manifest);
   const started = Date.now();
+  const requestId = randomUUID();
 
   try {
     const raw = MOCK
@@ -57,14 +62,18 @@ app.post("/api/decide", async (request: Request, response: Response) => {
     const action = validateAction(raw, mode, manifest, req.pageModel);
     const latencyMs = Date.now() - started;
     // Never log the page model or the transcript; they contain user data.
-    console.log(`[decide] site=${req.siteId} mode=${mode} action=${action.action} target=${action.target_id ?? "-"} blocked=${action.policy_blocked ? 1 : 0} ${latencyMs}ms`);
+    console.log(`[decide] request=${requestId} site=${req.siteId} mode=${mode} action=${action.action} target=${action.target_id ?? "-"} blocked=${action.policy_blocked ? 1 : 0} ${latencyMs}ms`);
     const out: DecideResponse = { action, latencyMs, model: MOCK ? "mock" : MODEL };
     response.json(out);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`[decide] error site=${req.siteId}: ${message.slice(0, 300)}`);
-    const status = /429|RESOURCE_EXHAUSTED/i.test(message) ? 429 : 502;
-    response.status(status).json({ error: status === 429 ? "rate limited" : "model call failed", detail: message.slice(0, 300) });
+    const failure = classifyModelError(err);
+    const latencyMs = Date.now() - started;
+    console.error(`[decide] request=${requestId} site=${req.siteId} code=${failure.code} provider_status=${failure.providerStatus ?? "unknown"} ${latencyMs}ms`);
+    const out: DecideErrorResponse = {
+      error: failure.error, code: failure.code, requestId,
+      model: MOCK ? "mock" : MODEL, latencyMs,
+    };
+    response.status(failure.httpStatus).json(out);
   }
 });
 

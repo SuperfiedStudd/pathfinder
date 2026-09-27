@@ -1,0 +1,29 @@
+URL /canopy   TITLE Pathfinder
+[1] a "Canopy Collective" href=/canopy visible in-viewport
+[2] a "Programs" href=/canopy/programs visible in-viewport
+[3] a "Volunteer" href=/canopy/volunteer visible in-viewport
+[4] a "Shop" href=/canopy visible in-viewport
+[5] a "Donate" href=/canopy/donate visible in-viewport
+[6] h1 "Shade is a public good. We plant it."
+SECTION "Shade is a public good. We plant it."
+[7] a "Give to a program" href=/canopy/donate visible in-viewport
+[8] a "See the three programs" href=/canopy/programs visible in-viewport
+[9] h2 "Three programs, one job"
+[10] h3 "Urban Canopy"
+SECTION "Urban Canopy"
+[11] a "Support Urban Canopy" href=/canopy/donate?designation=urban-canopy visible
+[12] h3 "Reforestation"
+SECTION "Reforestation"
+[13] a "Support Reforestation" href=/canopy/donate?designation=reforestation visible
+[14] h3 "School Groves"
+SECTION "School Groves"
+[15] a "Support School Groves" href=/canopy/donate?designation=school-groves visible
+[16] h2 "How we work"
+[17] h2 "Upcoming planting days"
+SECTION "Upcoming planting days"
+[18] a "Sign up to volunteer" href=/canopy/volunteer visible
+[19] label "Email for newsletter" visible
+[20] input(email) "Email for newsletter" value="" visible
+[21] button "Subscribe" enabled visible
+CONTENT: Shade is a public good. We plant it. Canopy Collective plants and cares for trees where they are missing most: hot city blocks, burned hillsides and bare schoolyards. Every gift is tied to a program you choose. Give to a program See the three programs Three programs, one job Urban Canopy Street trees for neighborhoods that have the least shade. We plant, water and prune for three years so the trees actually survive. Support Urban Canopy Reforestation Native seedlings for burned and logged hillsides in the Sierra foothills, planted by seasonal crews and tracked for five years. Support Reforestation School Groves Small orchards and shade groves on schoolyards, planted with the students who will eat from and sit under them. Support School Groves How we work Donations buy saplings, pay planting crews and fund three years of watering and pruning. Eighty-five percent of every dollar goes directly to programs; the rest covers staff, insurance and the trucks. We partner with city forestry departments rather than working around them, so every street tree we plant is on the city's own maintenance map. Schools apply for groves in the fall and we plant during spring break. You can give once or monthly, and you can designate your gift to a single program. Undesignated gifts go wherever the season needs them most, usually Reforestation in spring and Urban Canopy in fall. 12,400 trees in the ground since 2019 91% three-year survival on street trees 38 school groves planted Upcoming planting...
+CHANGES SINCE LAST STEP: none

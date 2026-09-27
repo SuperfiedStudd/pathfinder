@@ -49,6 +49,19 @@ export interface DecideResponse {
   model: string;
 }
 
+export type ModelErrorCode =
+  | "MODEL_BILLING_ERROR" | "MODEL_RATE_LIMIT" | "MODEL_AUTH_ERROR"
+  | "MODEL_NOT_FOUND" | "MODEL_REQUEST_ERROR" | "MODEL_UPSTREAM_ERROR"
+  | "MODEL_PARSE_ERROR" | "MODEL_NETWORK_ERROR" | "MODEL_UNKNOWN_ERROR";
+
+export interface DecideErrorResponse {
+  error: string;
+  code: ModelErrorCode;
+  requestId: string;
+  model: string;
+  latencyMs: number;
+}
+
 export const ACTION_TYPES: ActionType[] = [
   "highlight",
   "explain",

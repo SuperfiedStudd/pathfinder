@@ -318,6 +318,10 @@ html.pf-dock-left { padding-left: 380px; }
   outline-offset: 0;
 }
 
+.pf-voice-btn { min-width: 38px; padding: 7px; font-size: 16px; }
+.pf-voice-active { background: #fce8e7; border-color: #b3261e; color: #b3261e; }
+.pf-voice-error { padding: 0 14px 8px; color: #b3261e; font-size: 12px; }
+
 .pf-btn {
   border: 1px solid #cfcbe3;
   background: #ffffff;

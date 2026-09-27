@@ -1,4 +1,4 @@
-import type { Action, DecideRequest, DecideResponse, Mode, RecentAction, TranscriptTurn } from "@shared/schema";
+import type { Action, DecideRequest, DecideResponse, DecideErrorResponse, Mode, RecentAction, TranscriptTurn } from "@shared/schema";
 import type { SiteManifest } from "@shared/manifests";
 import { validateAction, effectiveMode } from "@shared/policy";
 import { snapshot, getElementById, CANDIDATE_SELECTOR, resetSnapshotMemory } from "./extract";
@@ -45,6 +45,8 @@ export interface LoopView {
   steps: number;
   audit: AuditEntry[];
   error: string;
+  errorCode: string;
+  errorRequestId: string;
 }
 
 const MAX_STEPS = 30;
@@ -106,6 +108,8 @@ export class OnboardingLoop {
       steps: 0,
       audit: [],
       error: "",
+      errorCode: "",
+      errorRequestId: "",
     };
     this.installTriggers();
   }
@@ -212,10 +216,11 @@ export class OnboardingLoop {
     }
     this.stepInFlight = true;
     this.pendingChange = false;
-    this.update({ state: "thinking", error: "" });
+    this.update({ state: "thinking", error: "", errorCode: "", errorRequestId: "" });
 
     try {
       const snap = snapshot();
+      this.update({ lastPageModel: snap.text });
       const body: DecideRequest = {
         siteId: this.siteId,
         mode: this.view.mode,
@@ -230,7 +235,11 @@ export class OnboardingLoop {
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        const err = (await res.json().catch(() => ({}))) as Partial<DecideErrorResponse>;
+        this.update({
+          lastModel: err.model ?? "", lastLatencyMs: err.latencyMs ?? 0,
+          errorCode: err.code ?? "", errorRequestId: err.requestId ?? "",
+        });
         throw new Error(err.error || `decide failed (${res.status})`);
       }
       const data = (await res.json()) as DecideResponse;
