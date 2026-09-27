@@ -11,6 +11,7 @@ import { buildSystemPrompt, buildUserTurn } from "./prompt";
 import { decideWithGemini, decideWithMock, MODEL, MOCK } from "./gemini";
 import { createVoiceRouter } from "./voice";
 import { classifyModelError } from "./model-errors";
+import { attachLiveServer } from "./live";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -87,6 +88,7 @@ if (fs.existsSync(dist)) {
 }
 
 const port = Number(process.env.PORT || 8787);
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`server listening on ${port} (model: ${MOCK ? "mock, no GEMINI_API_KEY" : MODEL})`);
 });
+attachLiveServer(server);

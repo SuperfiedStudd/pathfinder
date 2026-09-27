@@ -113,3 +113,20 @@ AI Studio Build imports from GitHub and syncs both ways. Link this repository in
 ## Team
 
 Tanmay Kallakuri and team. See `docs/PLAN.md` for the build plan, test matrix and hackathon-day timeline.
+
+## Hands-free Live voice prototype
+
+Click **Start voice** once to open a server-owned `gemini-3.8-live` session. Allow microphone access, wait for **Listening**, then speak naturally. Gemini detects turns and streams its own audio; speak over it to interrupt. **Stop voice** releases the microphone. Typed messages during Live use the same Live session; after stopping, text returns to the normal Flash `/api/decide` path. The smaller mic button remains the Chirp push-to-talk fallback and is available when Live is off.
+
+Live uses the existing `GEMINI_API_KEY` (no ADC requirement for Live itself) and `/api/live` WebSocket endpoint. Both `npm run dev` and the built server support the relay. The key stays on the server. Existing guide/assist policy, confirmations, sensitive-field protection, completion checks and browser executor still govern actions.
+
+See [Live implementation and manual test guide](docs/LIVE_VOICE.md) for architecture, limitations and the manual checklist. To run one paid protocol smoke session without a microphone:
+
+```bash
+npm run build
+PORT=8788 npm start
+# In another terminal:
+node --import tsx scripts/live-smoke.ts http://localhost:8788
+```
+
+Live is a demo prototype: a session ends at nine minutes or on provider disconnection; reconnect explicitly with **Start voice**. Chat text remains visible. No session resumption, persistence, production authentication, video or screen streaming is included.

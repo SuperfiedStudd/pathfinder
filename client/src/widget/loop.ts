@@ -1,9 +1,12 @@
 import type { Action, DecideRequest, DecideResponse, DecideErrorResponse, Mode, RecentAction, TranscriptTurn } from "@shared/schema";
 import type { SiteManifest } from "@shared/manifests";
 import { validateAction, effectiveMode } from "@shared/policy";
-import { snapshot, getElementById, CANDIDATE_SELECTOR, resetSnapshotMemory } from "./extract";
+import { snapshot, getElementById, findByName, CANDIDATE_SELECTOR, resetSnapshotMemory } from "./extract";
+import { isSensitive } from "./redact";
 import { execute, targetLabel } from "./actions";
 import type { Overlay } from "./overlay";
+import { LIVE_MODEL, validateLiveAction, type LiveContext } from "@shared/live";
+import { MAX_PAGE_MODEL_CHARS } from "@shared/schema";
 
 export type LoopState =
   | "idle"
@@ -21,6 +24,7 @@ export interface ChatMessage {
   text: string;
   options?: string[];
   blocked?: boolean;
+  live?: boolean;
 }
 
 export interface AuditEntry {
@@ -81,6 +85,11 @@ export class OnboardingLoop {
   private navigateHandler: (() => void) | null = null;
   private popstateHandler: (() => void) | null = null;
   private changeHandler: ((ev: Event) => void) | null = null;
+  private liveText: ((text: string) => void) | null = null;
+  private liveMessages = new Map<string, { id: number; transcriptIndex: number }>();
+  private liveActionId: string | null = null;
+  private liveGoalId: string | null = null;
+  private liveConfirmation: ((decision: "allow" | "skip" | "edit", value?: string) => void) | null = null;
 
   constructor(
     public readonly siteId: string,
@@ -138,9 +147,115 @@ export class OnboardingLoop {
 
   // Public controls -------------------------------------------------------
 
+  liveContext(): LiveContext {
+    return { siteId: this.siteId, mode: this.view.mode, goal: this.view.goal.slice(0, 500),
+      pageModel: snapshot().text.slice(0, MAX_PAGE_MODEL_CHARS),
+      transcript: this.transcript.slice(-10).map(t => ({ ...t, text: t.text.slice(0, 2000) })) };
+  }
+
+  beginLive(onText: (text: string) => void): boolean {
+    if (this.destroyed || this.stepInFlight || this.view.pendingConfirm || this.view.state === "acting") return false;
+    this.liveText = onText;
+    this.liveGoalId = null;
+    if (this.autoTimer) window.clearTimeout(this.autoTimer);
+    if (this.mutationTimer) window.clearTimeout(this.mutationTimer);
+    this.autoTimer = this.mutationTimer = null;
+    this.liveMessages.clear();
+    this.overlay.clear();
+    this.update({ state: "waiting_for_user", allowAll: false, error: "", errorCode: "", errorRequestId: "" });
+    return true;
+  }
+
+  endLive(): void {
+    if (!this.liveText) return;
+    this.cancelLiveAction();
+    this.liveText = null;
+    this.liveMessages.clear();
+    this.overlay.clear();
+    this.update({ state: "idle", pendingConfirm: null });
+  }
+
+  liveReady(): void {
+    if (this.liveText) this.update({ lastModel: LIVE_MODEL, lastPageModel: this.liveContext().pageModel, lastLatencyMs: 0 });
+  }
+
+  liveTranscript(id: string, role: "user" | "agent", text: string): void {
+    if (!this.liveText || !text.trim()) return;
+    const previous = this.liveMessages.get(id);
+    if (previous) {
+      this.transcript[previous.transcriptIndex] = { role, text };
+      this.update({ messages: this.view.messages.map(m => m.id === previous.id ? { ...m, text } : m) });
+    } else {
+      const messageId = this.msgId;
+      const transcriptIndex = this.transcript.length;
+      this.say(role, text, { live: true });
+      this.liveMessages.set(id, { id: messageId, transcriptIndex });
+    }
+    if (role === "user" && !this.view.goal) this.update({ goal: text.slice(0, 500) });
+  }
+
+  cancelLiveAction(id?: string): void {
+    if (id && this.liveActionId !== id) return;
+    this.liveActionId = null;
+    const resolve = this.liveConfirmation;
+    this.liveConfirmation = null;
+    resolve?.("skip");
+    this.update({ pendingConfirm: null, ...(this.liveText ? { state: "waiting_for_user" as const } : {}) });
+  }
+
+  async runLiveAction(id: string, raw: Action): Promise<{ outcome: string; pageModel: string }> {
+    const page = () => this.liveContext().pageModel;
+    if (!this.liveText || this.liveActionId || this.destroyed) return { outcome: "Action unavailable or another action is pending", pageModel: page() };
+    this.liveActionId = id;
+    let action = validateLiveAction(raw, this.view.mode, this.manifest, page());
+    if (action.goal_id && !action.policy_blocked) {
+      if (this.liveGoalId && this.liveGoalId !== action.goal_id) this.update({ allowAll: false });
+      this.liveGoalId = action.goal_id;
+    }
+    const started = Date.now();
+    try {
+      const element = (action.target_id ? getElementById(action.target_id) : null) ?? (action.target_name ? findByName(action.target_name) : null);
+      if ((action.action === "fill" || action.action === "click") && element && isSensitive(element)) {
+        return { outcome: "Refused: sensitive field. The user must enter this directly on the page.", pageModel: page() };
+      }
+      if ((action.action === "fill" || action.action === "click") && !this.view.allowAll) {
+        this.say("system", `Voice requests permission to ${describe(action)}.`);
+        this.update({ state: "awaiting_confirm", pendingConfirm: action });
+        const decision = await new Promise<{ decision: "allow" | "skip" | "edit"; value?: string }>(resolve => {
+          this.liveConfirmation = (decision, value) => resolve({ decision, value });
+        });
+        this.liveConfirmation = null;
+        this.update({ pendingConfirm: null });
+        if (decision.decision === "skip") return { outcome: "User skipped or cancelled the action", pageModel: page() };
+        if (decision.decision === "edit" && decision.value !== undefined) action = { ...action, value: decision.value };
+      }
+      if (!this.liveText || this.liveActionId !== id || this.destroyed) return { outcome: "Action cancelled", pageModel: page() };
+      // Revalidate mode, completion and target after the human confirmation delay.
+      const currentPage = page();
+      action = validateLiveAction(action, this.view.mode, this.manifest, currentPage);
+      this.update({ state: "acting", lastAction: action, lastPageModel: currentPage, lastModel: LIVE_MODEL });
+      const result = await execute(action, this.overlay);
+      this.pushOutcome(result.outcome, action);
+      if (action.policy_blocked || action.action === "fill" || action.action === "click") {
+        this.say("system", result.outcome);
+        this.update({ audit: [...this.view.audit, { at: Date.now(), action: action.action, target: targetLabel(action), outcome: result.outcome }] });
+      }
+      if (result.settle || action.action === "scroll" || action.action === "highlight") await this.waitForSettle();
+      const fresh = page();
+      if (this.liveText !== null && this.liveActionId === id) this.update({ lastPageModel: fresh, lastLatencyMs: Date.now() - started, steps: this.view.steps + 1 });
+      return { outcome: result.outcome, pageModel: fresh };
+    } finally {
+      if (this.liveActionId === id) {
+        this.liveActionId = null;
+        if (this.liveText !== null) this.update({ state: "waiting_for_user", pendingConfirm: null });
+      }
+    }
+  }
+
   send(text: string): void {
     const trimmed = text.trim();
     if (!trimmed) return;
+    if (this.liveText) { this.liveText(trimmed); return; }
     this.say("user", trimmed);
     const st = this.view.state;
     if (st === "idle" || st === "finished" || st === "stopped" || st === "error") {
@@ -179,6 +294,7 @@ export class OnboardingLoop {
   }
 
   confirm(decision: "allow" | "skip" | "edit", value?: string): void {
+    if (this.liveConfirmation) { this.liveConfirmation(decision, value); return; }
     const pending = this.view.pendingConfirm;
     if (!pending) return;
     this.update({ pendingConfirm: null });
@@ -206,7 +322,7 @@ export class OnboardingLoop {
   }
 
   private async step(reason: string): Promise<void> {
-    if (this.destroyed) return;
+    if (this.destroyed || this.liveText) return;
     dbg("step", reason, "inFlight", this.stepInFlight, "steps", this.view.steps);
     if (this.stepInFlight) return;
     if (this.view.steps >= MAX_STEPS) {
@@ -403,6 +519,7 @@ export class OnboardingLoop {
 
   private onPageChanged(reason: string): void {
     if (this.destroyed) return;
+    if (this.liveText) return;
     dbg("trigger", reason, "state", this.view.state, "gap", Date.now() - this.lastStepEnd);
     if (this.view.state !== "waiting_for_user") {
       // The page moved while the agent was deciding. Remember it so the
@@ -460,6 +577,7 @@ export class OnboardingLoop {
   }
 
   destroy(): void {
+    this.endLive();
     this.destroyed = true;
     if (this.navigateHandler) window.removeEventListener("pf:navigate", this.navigateHandler);
     if (this.popstateHandler) window.removeEventListener("popstate", this.popstateHandler);

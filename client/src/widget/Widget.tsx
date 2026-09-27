@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { OnboardingLoop, LoopView } from "./loop";
 import { describe, elementForAction } from "./loop";
 import { VoiceController, type VoiceStatus } from "./voice";
+import { LiveController, type LiveStatus } from "./live";
 
 interface Props {
   loop: OnboardingLoop;
@@ -33,19 +34,24 @@ export function Widget({ loop }: Props) {
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [voiceError, setVoiceError] = useState("");
   const voiceRef = useRef<VoiceController | null>(null);
+  const liveRef = useRef<LiveController | null>(null);
+  const [liveStatus, setLiveStatus] = useState<LiveStatus>("idle");
+  const [liveError, setLiveError] = useState("");
+  const liveActive = liveStatus === "connecting" || liveStatus === "listening" || liveStatus === "speaking";
   const spokenIdRef = useRef(Math.max(...loop.getView().messages.map((m) => m.id)));
 
   if (!voiceRef.current) {
     voiceRef.current = new VoiceController(setVoiceStatus, (transcript) => loop.send(transcript), setVoiceError);
   }
+  if (!liveRef.current) liveRef.current = new LiveController(loop, setLiveStatus, setLiveError);
 
-  useEffect(() => () => voiceRef.current?.dispose(), []);
+  useEffect(() => () => { liveRef.current?.dispose(); voiceRef.current?.dispose(); }, []);
 
   useEffect(() => {
     for (const message of view.messages) {
       if (message.id <= spokenIdRef.current) continue;
       spokenIdRef.current = message.id;
-      if (message.role === "agent") {
+      if (message.role === "agent" && !message.live && !liveRef.current?.active) {
         if (voiceEnabled) void voiceRef.current?.speak(message.text);
         else voiceRef.current?.markIdle();
       }
@@ -97,13 +103,13 @@ export function Widget({ loop }: Props) {
   useEffect(() => {
     const el = listRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [view.messages.length, view.pendingConfirm, view.state]);
+  }, [view.messages, view.pendingConfirm, view.state]);
 
   const allowAssist = loop.manifest.policy.allowAssist;
   const busy = view.state === "thinking" || view.state === "acting";
 
   function submit() {
-    if (!text.trim()) return;
+    if (!text.trim() || liveStatus === "connecting") return;
     loop.send(text);
     setText("");
   }
@@ -264,23 +270,37 @@ export function Widget({ loop }: Props) {
               onKeyDown={(e) => {
                 if (e.key === "Enter") submit();
               }}
-              disabled={busy || view.state === "awaiting_confirm"}
+              disabled={!liveActive && (busy || view.state === "awaiting_confirm")}
               aria-label="Message the guide"
             />
             <button
               className={`pf-btn pf-voice-btn ${voiceStatus === "listening" ? "pf-voice-active" : ""}`}
               onClick={() => { setVoiceError(""); void voiceRef.current?.toggleRecording(); }}
-              disabled={(busy || view.state === "awaiting_confirm" || voiceStatus === "starting" || voiceStatus === "transcribing") && voiceStatus !== "listening"}
+              disabled={liveActive || ((busy || view.state === "awaiting_confirm" || voiceStatus === "starting" || voiceStatus === "transcribing") && voiceStatus !== "listening")}
               aria-label={voiceStatus === "listening" ? "Stop recording" : "Start recording"}
               aria-pressed={voiceStatus === "listening"}
-              title={voiceStatus === "listening" ? "Stop recording" : "Record one message"}
+              title={voiceStatus === "listening" ? "Stop recording" : "Fallback: record one message with Chirp"}
             >
               {voiceStatus === "listening" ? "■" : "🎙"}
             </button>
-            <button className="pf-btn pf-primary" onClick={submit} disabled={busy || !text.trim()}>
+            <button className="pf-btn pf-primary" onClick={submit} disabled={liveStatus === "connecting" || (!liveActive && busy) || !text.trim()}>
               Send
             </button>
           </div>
+
+          <div className="pf-live-controls">
+            <button className={`pf-btn ${liveActive ? "pf-voice-active" : "pf-primary"}`}
+              aria-pressed={liveActive}
+              disabled={!liveActive && (busy || !!view.pendingConfirm || ["starting", "listening", "transcribing"].includes(voiceStatus))}
+              onClick={() => {
+                if (liveActive) liveRef.current?.stop();
+                else { voiceRef.current?.stopPlayback(); void liveRef.current?.start(); }
+              }}>
+              {liveActive ? "Stop voice" : "Start voice"}
+            </button>
+            <span role="status">{{ idle: "Hands-free conversation", connecting: "Connecting", listening: "Listening", speaking: "Speaking", error: "Voice error" }[liveStatus]}</span>
+          </div>
+          {liveError && <div className="pf-voice-error" role="alert">{liveError}</div>}
 
           <div className="pf-toolbar">
             <span className={`pf-status pf-status-${view.state}`} role="status">
@@ -291,6 +311,7 @@ export function Widget({ loop }: Props) {
             <div className="pf-row">
               <button
                 className="pf-btn pf-small pf-ghost"
+                disabled={liveActive}
                 onClick={() => { setVoiceEnabled(!voiceEnabled); if (voiceEnabled) voiceRef.current?.stopPlayback(); }}
                 aria-label={voiceEnabled ? "Mute voice responses" : "Unmute voice responses"}
                 aria-pressed={!voiceEnabled}
@@ -298,10 +319,10 @@ export function Widget({ loop }: Props) {
               >
                 {voiceEnabled ? "🔊" : "🔇"}
               </button>
-              <button className="pf-btn pf-small" onClick={() => loop.next()} disabled={view.state !== "waiting_for_user"}>
+              <button className="pf-btn pf-small" onClick={() => liveActive ? loop.send("I have done that. What is next?") : loop.next()} disabled={view.state !== "waiting_for_user" || liveStatus === "connecting"}>
                 Done, what's next
               </button>
-              <button className="pf-btn pf-small" onClick={() => loop.stop()} disabled={view.state === "idle" || view.state === "stopped"}>
+              <button className="pf-btn pf-small" onClick={() => { liveRef.current?.stop(); loop.stop(); }} disabled={!liveActive && (view.state === "idle" || view.state === "stopped")}>
                 Stop
               </button>
               <button className="pf-btn pf-small pf-ghost" onClick={() => setDrawer(!drawer)}>
